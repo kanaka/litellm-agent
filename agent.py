@@ -8,6 +8,7 @@ import subprocess
 
 debug = False
 model = "github_copilot/gpt-4"
+#model = "github_copilot/gemini-2.0-flash-001"
 extra_headers = {"editor-version": "vscode/1.85.1"}
 
 def get_tools_param(tools_map):
@@ -50,7 +51,7 @@ def ls_dir(path):
 def edit_file(path, match, replace):
     """Edit the file at 'path' replacing the first occurence of
     'match' string with 'replace' string.
-    Return empty map on success"""
+    Returns an empty map on success"""
     orig = open(path).read()
     new = orig.replace(match, replace, 1)
     open(path, "w").write(new)
@@ -58,7 +59,7 @@ def edit_file(path, match, replace):
 
 def create_file(path, content):
     """Create (or replace) file at 'path' with 'content'.
-    Return empty map on success"""
+    Returns an empty map on success"""
     open(path, "w").write(content)
     return {}
 
@@ -70,14 +71,15 @@ TOOLS_MAP = {
 }
 
 def main():
-    print("Simple Litellm Agent (Ctrl-D to quit)")
+    print("Simple LiteLLM Coding Agent (Ctrl-D to quit)")
+    print(f"  - using model: {model}")
     messages = [{"content": "You are an advanced coding agent", "role":"system"}]
     tools = get_tools_param(TOOLS_MAP)
 
     while True:
         if messages[-1]["role"] != "tool":
             try:
-                user_input = input("\u001b[94myou\u001b[0m> ")
+                user_input = input("\u001b[94muser\u001b[0m> ")
             except EOFError as e:
                 break
             messages.append({"content": user_input, "role":"user"})
@@ -100,26 +102,27 @@ def main():
         messages.append(resp_message.model_dump())
 
         tool_calls = resp_message.tool_calls
-        if tool_calls:
-            for tc in tool_calls:
-                fn = tc['function']
-                if fn.name in TOOLS_MAP:
-                    fn_args = json.loads(fn.arguments)
-                    print(f"\u001b[92mtool call\u001b[0m> {fn.name}({fn_args})")
-                    try:
-                        fn_result = TOOLS_MAP[fn.name](**fn_args)
-                    except Exception as e:
-                        fn_result = {"error": str(e)}
-                    print(f"\u001b[96mtool result\u001b[0m> {json.dumps(fn_result)}")
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc['id'],
-                        "name": fn.name,
-                        "content": json.dumps(fn_result),
-                    })
-                else:
-                    raise Exception(f"Unknown tool call: {fn.name}")
-        else:
-            print(f"\u001b[93m{model}\u001b[0m> {resp_message.content}")
+        if not tool_calls:
+            print(f"\u001b[93massistant\u001b[0m> {resp_message.content}")
+            continue
+
+        for tc in tool_calls:
+            fn = tc['function']
+            if fn.name in TOOLS_MAP:
+                fn_args = json.loads(fn.arguments)
+                print(f"\u001b[92mtool call\u001b[0m> {fn.name}({fn_args})")
+                try:
+                    fn_result = TOOLS_MAP[fn.name](**fn_args)
+                except Exception as e:
+                    fn_result = {"error": str(e)}
+                print(f"\u001b[96mtool result\u001b[0m> {json.dumps(fn_result)}")
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc['id'],
+                    "name": fn.name,
+                    "content": json.dumps(fn_result),
+                })
+            else:
+                raise Exception(f"Unknown tool call: {fn.name}")
 
 main()
