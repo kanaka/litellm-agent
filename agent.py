@@ -10,7 +10,6 @@ debug = False
 model = "github_copilot/gpt-4"
 extra_headers = {"editor-version": "vscode/1.85.1"}
 
-
 def get_tools_param(tools_map):
     typemap = {int: "integer", float: "number", bool: "boolean"}
     tools = []
@@ -37,22 +36,41 @@ def get_tools_param(tools_map):
     return tools
 
 def read_file(path):
-    """Read the contents of a file at path and return as a string"""
-    return json.dumps(open(path).read())
+    """Read the file at path.
+    Returns a map {'content':content}"""
+    return open(path).read()
 
 def ls_dir(path):
-    """Run `ls -la path` and returns map with 'stdout', 'stderr', and 'returncode'"""
+    """Run `ls -la path`.
+    Returns a map {'stdout':stdout,'stderr':stderr,'returncode':code}"""
     cp = subprocess.run(["ls", "-la", path], capture_output=True, text=True)
     res = {k: getattr(cp, k) for k in ('stdout', 'stderr', 'returncode')}
-    return json.dumps(res)
+    return res
+
+def edit_file(path, match, replace):
+    """Edit the file at 'path' replacing the first occurence of
+    'match' string with 'replace' string.
+    Return empty map on success"""
+    orig = open(path).read()
+    new = orig.replace(match, replace, 1)
+    open(path, "w").write(new)
+    return {}
+
+def create_file(path, content):
+    """Create (or replace) file at 'path' with 'content'.
+    Return empty map on success"""
+    open(path, "w").write(content)
+    return {}
 
 TOOLS_MAP = {
     "read_file": read_file,
     "ls_dir": ls_dir,
+    "edit_file": edit_file,
+    "create_file": create_file,
 }
 
 def main():
-    print("Simple Litellm Agent (Ctrl-C to quit)")
+    print("Simple Litellm Agent (Ctrl-D to quit)")
     messages = [{"content": "You are an advanced coding agent", "role":"system"}]
     tools = get_tools_param(TOOLS_MAP)
 
@@ -87,13 +105,17 @@ def main():
                 fn = tc['function']
                 if fn.name in TOOLS_MAP:
                     fn_args = json.loads(fn.arguments)
-                    print(f"\u001b[92mtool_call\u001b[0m> {fn.name}({fn_args})")
-                    fn_result = TOOLS_MAP[fn.name](**fn_args)
+                    print(f"\u001b[92mtool call\u001b[0m> {fn.name}({fn_args})")
+                    try:
+                        fn_result = TOOLS_MAP[fn.name](**fn_args)
+                    except Exception as e:
+                        fn_result = {"error": str(e)}
+                    print(f"\u001b[96mtool result\u001b[0m> {json.dumps(fn_result)}")
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tc['id'],
                         "name": fn.name,
-                        "content": fn_result,
+                        "content": json.dumps(fn_result),
                     })
                 else:
                     raise Exception(f"Unknown tool call: {fn.name}")
