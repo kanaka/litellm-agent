@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import inspect
 import json
 from litellm import completion
 from pprint import pprint
@@ -8,30 +9,44 @@ debug = False
 model = "github_copilot/gpt-4"
 extra_headers = {"editor-version": "vscode/1.85.1"}
 
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Return the contents of a file at the given relative path. Use this to get regular file contents but do not use it with directory names.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string"},
-                },
-                "required": ["path"]
-            },
-        },
-    }
-]
+
+def get_tools_param(tool_map):
+    typemap = {int: "integer", float: "number", bool: "boolean"}
+    tools = []
+    for name, fn in tool_map.items():
+        props, req = {}, []
+        for p in inspect.signature(fn).parameters.values():
+            if p.kind.name.startswith("VAR"):  # skip *args/**kw
+                continue
+            props[p.name] = {"type": typemap.get(p.annotation, "string")}
+            if p.default is p.empty:
+                req.append(p.name)
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": fn.__name__,
+                "description": (fn.__doc__ or "").strip(),
+                "parameters": {
+                    "type": "object",
+                    "properties": props,
+                    **({"required": req} if req else {})
+                }
+            }
+        })
+    return tools
 
 def read_file(path):
     return open(path).read()
 
+TOOL_MAP = {
+    "read_file": read_file,
+}
 
 def main():
     print("Simple Litellm Agent (Ctrl-C to quit)")
     messages = [{"content": "You are an advanced coding agent", "role":"system"}]
+    tools = get_tools_param(TOOL_MAP)
+
     while True:
         if messages[-1]["role"] != "tool":
             try:
