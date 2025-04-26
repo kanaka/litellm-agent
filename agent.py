@@ -39,7 +39,7 @@ def get_tools_param(tools_map):
 def read_file(path):
     """Read the file at path.
     Returns a map {'content':content}"""
-    return open(path).read()
+    return {"content": open(path).read()}
 
 def ls_dir(path):
     """Run `ls -la path`.
