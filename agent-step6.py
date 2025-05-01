@@ -3,10 +3,8 @@
 import inspect
 import json
 from litellm import completion
-from pprint import pprint
 import subprocess
 
-debug = False
 model = "github_copilot/gpt-4"
 #model = "github_copilot/o3-mini"
 extra_headers = {"editor-version": "vscode/1.85.1"}
@@ -76,52 +74,46 @@ TOOLS_MAP = {
 def trunc(s, max=80):
     return s[:max-4] + '...' if len(s) >= max else s
 
-print("Simple LiteLLM Coding Agent (Ctrl-D to quit)")
-print(f"  - using model: {model}")
+print(f"\033[94mStarting up with model: {model}\033[0m")
+    
 messages = [{"content": "You are a coding agent", "role":"system"}]
 tools = get_tools_param(TOOLS_MAP)
 
 while True:
     if messages[-1]["role"] != "tool":
         try:
-            user_input = input("\u001b[94muser\u001b[0m> ")
+            user_input = input(f"\033[93muser> \033[0m")
         except EOFError as e:
             break
 
         messages.append({"content": user_input, "role":"user"})
 
-    if debug:
-        print("Sending messages full JSON:")
-        pprint(messages)
     response = completion(
         model=model,
         extra_headers=extra_headers,
         messages=messages,
         tools=tools,
     )
-    if debug:
-        print("AI response full JSON:")
-        pprint(response.model_dump())
 
     resp_message = response.choices[0].message
     messages.append(resp_message.model_dump())
 
     tool_calls = resp_message.tool_calls
     if not tool_calls:
-        print(f"\u001b[93massistant\u001b[0m> {resp_message.content}")
+        print(f"\033[92massistant> {resp_message.content}\033[0m")
         continue
 
     for tc in tool_calls:
         fn = tc['function']
         if fn.name in TOOLS_MAP:
             fn_args = json.loads(fn.arguments)
-            print(f"\u001b[92mtool call\u001b[0m> {fn.name}({fn_args})")
+            print(trunc(f"\033[95mtool call> {fn.name}({fn_args})\033[0m"))
             try:
                 fn_result = TOOLS_MAP[fn.name](**fn_args)
             except Exception as e:
                 fn_result = {"error": str(e)}
             res_str = json.dumps(fn_result)"
-            print(f"\u001b[96mtool result\u001b[0m> {res_str}")
+            print(trunc(f"\033[96mtool result> {res_str}\033[0m"))
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc['id'],

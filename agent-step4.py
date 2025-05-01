@@ -3,10 +3,8 @@
 import inspect
 import json
 from litellm import completion
-from pprint import pprint
 import subprocess
 
-debug = False
 model = "github_copilot/gpt-4"
 #model = "github_copilot/o3-mini"
 extra_headers = {"editor-version": "vscode/1.85.1"}
@@ -48,80 +46,49 @@ def ls_dir(path):
     res = {k: getattr(cp, k) for k in ('stdout', 'stderr', 'returncode')}
     return res
 
-def edit_file(path, match, replace):
-    """Edit the file at 'path' replacing the first occurence of
-    'match' string with 'replace' string. 'match' and 'replace' are
-    raw strings and should not have escaped newlines, backslashes, etc.
-    Returns an empty map on success"""
-    orig = open(path).read()
-    new = orig.replace(match, replace, 1)
-    if new == orig: raise Exception("match string not found")
-    open(path, "w").write(new)
-    return {}
-
-def create_file(path, content):
-    """Create (or replace) file at 'path' with 'content'.
-    'content' is a raw string and does not need extra escaping.
-    Returns an empty map on success"""
-    open(path, "w").write(content)
-    return {}
-
 TOOLS_MAP = {
     "read_file": read_file,
     "ls_dir": ls_dir,
-    "edit_file": edit_file,
-    "create_file": create_file,
 }
 
 def trunc(s, max=80):
     return s[:max-4] + '...' if len(s) >= max else s
 
-print("Simple LiteLLM Coding Agent (Ctrl-D to quit)")
-print(f"  - using model: {model}")
 messages = [{"content": "You are a coding agent", "role":"system"}]
 tools = get_tools_param(TOOLS_MAP)
 
 while True:
     if messages[-1]["role"] != "tool":
         try:
-            user_input = input("\u001b[94muser\u001b[0m> ")
+            user_input = input("user> ")
         except EOFError as e:
             break
 
         messages.append({"content": user_input, "role":"user"})
 
-    if debug:
-        print("Sending messages full JSON:")
-        pprint(messages)
     response = completion(
         model=model,
         extra_headers=extra_headers,
         messages=messages,
         tools=tools,
     )
-    if debug:
-        print("AI response full JSON:")
-        pprint(response.model_dump())
 
     resp_message = response.choices[0].message
     messages.append(resp_message.model_dump())
 
     tool_calls = resp_message.tool_calls
     if not tool_calls:
-        print(f"\u001b[93massistant\u001b[0m> {resp_message.content}")
+        print(f"assistant> {resp_message.content}")
         continue
 
     for tc in tool_calls:
         fn = tc['function']
         if fn.name in TOOLS_MAP:
             fn_args = json.loads(fn.arguments)
-            print(f"\u001b[92mtool call\u001b[0m> {fn.name}({fn_args})")
-            try:
-                fn_result = TOOLS_MAP[fn.name](**fn_args)
-            except Exception as e:
-                fn_result = {"error": str(e)}
+            print(trunc(f"calling {fn.name}({fn_args})"))
+            fn_result = TOOLS_MAP[fn.name](**fn_args)
             res_str = json.dumps(fn_result)"
-            print(f"\u001b[96mtool result\u001b[0m> {res_str}")
+            print(trunc(f"result: {res_str}"))
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc['id'],
