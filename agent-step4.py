@@ -5,8 +5,8 @@ import json
 from litellm import completion
 import subprocess
 
-model = "github_copilot/gpt-4"
-#model = "github_copilot/o3-mini"
+model = "github_copilot/o3-mini"
+#model = "github_copilot/gpt-4"
 extra_headers = {"editor-version": "vscode/1.85.1"}
 
 def get_tools_param(tools_map):
@@ -63,7 +63,6 @@ while True:
             user_input = input("user> ")
         except EOFError as e:
             break
-
         messages.append({"content": user_input, "role":"user"})
 
     response = completion(
@@ -87,7 +86,7 @@ while True:
             fn_args = json.loads(fn.arguments)
             print(trunc(f"calling {fn.name}({fn_args})"))
             fn_result = TOOLS_MAP[fn.name](**fn_args)
-            res_str = json.dumps(fn_result)"
+            res_str = json.dumps(fn_result)
             print(trunc(f"result: {res_str}"))
             messages.append({
                 "role": "tool",

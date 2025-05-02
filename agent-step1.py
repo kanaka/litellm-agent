@@ -3,8 +3,8 @@
 from litellm import completion
 import sys
 
-model = "github_copilot/gpt-4"
-#model = "github_copilot/o3-mini"
+model = "github_copilot/o3-mini"
+#model = "github_copilot/gpt-4"
 extra_headers = {"editor-version": "vscode/1.85.1"}
 
 response = completion(

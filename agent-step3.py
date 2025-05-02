@@ -3,8 +3,8 @@
 import json
 from litellm import completion
 
-model = "github_copilot/gpt-4"
-#model = "github_copilot/o3-mini"
+model = "github_copilot/o3-mini"
+#model = "github_copilot/gpt-4"
 extra_headers = {"editor-version": "vscode/1.85.1"}
 
 tools = [
@@ -35,7 +35,6 @@ while True:
             user_input = input("user> ")
         except EOFError as e:
             break
-
         messages.append({"content": user_input, "role":"user"})
 
     response = completion(
@@ -58,8 +57,8 @@ while True:
         if fn.name == "read_file":
             fn_args = json.loads(fn.arguments)
             print(trunc(f"calling read_file({fn_args})"))
-            fn_result = {"content": open(**fn_args).read()}
-            res_str = json.dumps(fn_result)"
+            fn_result = {"content": open(fn_args['path']).read()}
+            res_str = json.dumps(fn_result)
             print(trunc(f"result: {res_str}"))
             messages.append({
                 "role": "tool",
